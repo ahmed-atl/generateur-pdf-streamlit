@@ -11,7 +11,6 @@ from PyPDF2 import PdfReader as PdfReader2, PdfWriter as PdfWriter2
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-
 # =========================
 # ===== CONFIG SITE =====
 # =========================
@@ -69,10 +68,10 @@ st.title("Générateur de fiches PDF")
 # =========================
 EXCEL_URL = "https://drive.google.com/uc?export=download&id=1ky704tr63-DNl0CW7m__4DyoN1zPTP9u"
 FICHE_PDF = "Fiche de renseignements.pdf"
-REGLEMENT_PDF = "Reglement interrieur Rush School.pdf"
+REGLEMENT_URL = "https://drive.google.com/uc?export=download&id=1ZvYzecItMFm1vK2bdBEoBIMbCk54Zhse"
 
 FONT_PATH = "Roboto-VariableFont_wdth,wght.ttf"
-PAGE_REGLEMENT = 23  # page 24
+PAGE_REGLEMENT = 23  # page 24 indexée à 0
 
 pdfmetrics.registerFont(TTFont("Roboto", FONT_PATH))
 
@@ -112,13 +111,11 @@ if st.button("Générer les fiches de renseignements"):
         }
 
         def idx(c): return ord(c) - 65
-
         results = []
 
         for _, row in df.iterrows():
             base_pdf = PdfReader(FICHE_PDF)
             overlay = "__overlay.pdf"
-
             c = canvas.Canvas(overlay, pagesize=A4)
             c.setFont("Helvetica", 10)
 
@@ -133,21 +130,17 @@ if st.button("Générer les fiches de renseignements"):
                 c.showPage()
 
             c.save()
-
             overlay_pdf = PdfReader(overlay)
             writer = PdfWriter()
-
             for i in range(len(base_pdf.pages)):
                 PageMerge(base_pdf.pages[i]).add(overlay_pdf.pages[i]).render()
                 writer.addpage(base_pdf.pages[i])
 
-            buffer = BytesIO()
-            writer.write(buffer)
-            buffer.seek(0)
-
+            buf = BytesIO()
+            writer.write(buf)
+            buf.seek(0)
             filename = f"{row.iloc[0]}_{row.iloc[1]}.pdf"
-            results.append((filename, buffer))
-
+            results.append((filename, buf))
             os.remove(overlay)
 
         st.session_state.fiches = results
@@ -171,7 +164,6 @@ if st.session_state.fiches:
         for name, buf in st.session_state.fiches:
             buf.seek(0)
             z.writestr(name, buf.read())
-
     st.download_button("📦 ZIP fiches", zip_buf.getvalue(), "Fiches.zip", "application/zip")
 
 
@@ -183,7 +175,9 @@ st.header("📘 Règlement intérieur")
 if st.button("Générer les règlements intérieurs"):
     try:
         st.info("Génération des règlements...")
+
         df = pd.read_excel(BytesIO(requests.get(EXCEL_URL).content))
+        reglement_pdf = BytesIO(requests.get(REGLEMENT_URL).content)
 
         results = []
 
@@ -192,6 +186,7 @@ if st.button("Générer les règlements intérieurs"):
             date = row.iloc[21]
             date = date.strftime("%d/%m/%Y") if pd.notna(date) else ""
 
+            # création overlay
             packet = BytesIO()
             c = canvas.Canvas(packet, pagesize=A4)
             c.setFont("Roboto", 11)
@@ -199,10 +194,10 @@ if st.button("Générer les règlements intérieurs"):
             c.setFont("Roboto", 10)
             c.drawString(70, 195, date)
             c.save()
-
             packet.seek(0)
+
             overlay = PdfReader2(packet)
-            base = PdfReader2(REGLEMENT_PDF)
+            base = PdfReader2(reglement_pdf)
             writer = PdfWriter2()
 
             for i, page in enumerate(base.pages):
@@ -213,7 +208,6 @@ if st.button("Générer les règlements intérieurs"):
             buf = BytesIO()
             writer.write(buf)
             buf.seek(0)
-
             results.append((f"Reglement_{nom}.pdf", buf))
 
         st.session_state.reglements = results
@@ -237,5 +231,4 @@ if st.session_state.reglements:
         for name, buf in st.session_state.reglements:
             buf.seek(0)
             z.writestr(name, buf.read())
-
     st.download_button("📦 ZIP règlements", zip_buf.getvalue(), "Reglements.zip", "application/zip")
