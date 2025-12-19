@@ -2,5 +2,5 @@ streamlit
 pandas
 pdfrw
 reportlab
+PyPDF2
 requests
-openpyxl
